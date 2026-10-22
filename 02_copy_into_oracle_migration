@@ -1,0 +1,63 @@
+USE ROLE sysadmin;
+USE WAREHOUSE tb_de_wh;
+USE DATABASE tb_101;
+USE SCHEMA raw_pos;
+
+
+CREATE OR REPLACE TABLE tb_101.raw_pos.oracle_orders_export
+(
+    order_id        NUMBER(10,0),
+    customer_id     VARCHAR(10),
+    customer_name   VARCHAR(100),
+    order_date      DATE,
+    product_code    VARCHAR(20),
+    quantity        NUMBER(10,0),
+    unit_price      NUMBER(10,2),
+    status          VARCHAR(20),
+    created_by      VARCHAR(20)
+);
+
+
+CREATE OR REPLACE FILE FORMAT tb_101.public.my_csv_format
+    TYPE = 'CSV'
+    FIELD_DELIMITER = ','
+    SKIP_HEADER = 1TB_101.PUBLIC.MY_UPLOAD_STAGETB_101.PUBLIC.MY_UPLOAD_STAGE
+    NULL_IF = ('NULL', 'null', '')
+    EMPTY_FIELD_AS_NULL = TRUE;
+
+
+CREATE OR REPLACE STAGE tb_101.public.my_upload_stage
+FILE_FORMAT = tb_101.public.my_csv_format
+COMMENT = 'Internal stage for uploading Oracle export files';
+
+LIST @tb_101.public.my_upload_stage;
+
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9
+FROM @tb_101.public.my_upload_stage
+LIMIT 5;
+
+
+COPY INTO tb_101.raw_pos.oracle_orders_export
+FROM @tb_101.public.my_upload_stage
+FILE_FORMAT = (FORMAT_NAME = 'tb_101.public.my_csv_format')
+ON_ERROR = 'CONTINUE';
+
+select * from tb_101.raw_pos.oracle_orders_export;
+
+
+SELECT 
+    status,
+    COUNT(*) AS order_count,
+    SUM(quantity * unit_price) AS total_revenue
+FROM tb_101.raw_pos.oracle_orders_export
+GROUP BY status
+ORDER BY total_revenue DESC;
+
+-- Top customers by spend
+SELECT
+    customer_name,
+    COUNT(*) AS order_count,
+    SUM(quantity * unit_price) AS total_spend
+FROM tb_101.raw_pos.oracle_orders_export
+GROUP BY customer_name
+ORDER BY total_spend DESC;

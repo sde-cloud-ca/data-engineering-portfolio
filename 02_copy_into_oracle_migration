@@ -3,7 +3,7 @@ USE WAREHOUSE tb_de_wh;
 USE DATABASE tb_101;
 USE SCHEMA raw_pos;
 
-
+--Create the target table (my csv has all these columns)
 CREATE OR REPLACE TABLE tb_101.raw_pos.oracle_orders_export
 (
     order_id        NUMBER(10,0),
@@ -17,7 +17,7 @@ CREATE OR REPLACE TABLE tb_101.raw_pos.oracle_orders_export
     created_by      VARCHAR(20)
 );
 
-
+— Create a file format
 CREATE OR REPLACE FILE FORMAT tb_101.public.my_csv_format
     TYPE = 'CSV'
     FIELD_DELIMITER = ','
@@ -25,23 +25,41 @@ CREATE OR REPLACE FILE FORMAT tb_101.public.my_csv_format
     NULL_IF = ('NULL', 'null', '')
     EMPTY_FIELD_AS_NULL = TRUE;
 
-
+-- Create a internal staging table
 CREATE OR REPLACE STAGE tb_101.public.my_upload_stage
 FILE_FORMAT = tb_101.public.my_csv_format
 COMMENT = 'Internal stage for uploading Oracle export files';
 
+-----------------Manual step----------------------------------------------------------
+--Upload your CSV file to the stage (Manual Step)
+
+This is done from the Snowflake UI — not SQL. Here’s how:
+
+Click the Databases tab in the left panel
+Navigate to TB_101 → PUBLIC → Stages
+Click on MY_UPLOAD_STAGE
+Click the +Files button in the top right
+Browse to your Desktop and select oracle_orders_export.csv
+Click Upload
+---------------------------------------------------------------------------------------
+
+--Verify the file is in the stage
+
 LIST @tb_101.public.my_upload_stage;
 
+--— Preview the file before loading
 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9
 FROM @tb_101.public.my_upload_stage
 LIMIT 5;
 
+--Copy contents from stage to table
 
 COPY INTO tb_101.raw_pos.oracle_orders_export
 FROM @tb_101.public.my_upload_stage
 FILE_FORMAT = (FORMAT_NAME = 'tb_101.public.my_csv_format')
 ON_ERROR = 'CONTINUE';
 
+--run various sql commands to verify the rows which have been copied
 select * from tb_101.raw_pos.oracle_orders_export;
 
 

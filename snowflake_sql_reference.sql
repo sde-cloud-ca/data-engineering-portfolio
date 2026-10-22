@@ -1,6 +1,6 @@
 /****************************************************
  Snowflake SQL Reference — Oracle Developer Cheat Sheet
- Author: Sapna
+ Author: SN
  Purpose: Key syntax differences Oracle vs Snowflake
 ****************************************************/
 

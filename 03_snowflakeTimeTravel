@@ -1,0 +1,63 @@
+
+USE ROLE sysadmin;
+USE WAREHOUSE tb_de_wh;
+USE DATABASE tb_101;
+USE SCHEMA raw_pos;
+
+-- Instant copy of your Oracle migration table
+-- No storage cost until data diverges
+CREATE TABLE tb_101.raw_pos.oracle_orders_clone
+CLONE tb_101.raw_pos.oracle_orders_export;
+
+
+SELECT 'original' AS source, COUNT(*) AS rowscnt 
+FROM tb_101.raw_pos.oracle_orders_export
+UNION ALL
+SELECT 'clone', COUNT(*) 
+FROM tb_101.raw_pos.oracle_orders_clone;
+
+
+
+-- Save the last query ID before running Time Travel
+SET last_update_id = LAST_QUERY_ID();
+
+UPDATE tb_101.raw_pos.oracle_orders_clone
+SET status = 'ARCHIVED'
+WHERE order_id IN (1001, 1002, 1003);
+
+
+
+-- Original — should still show COMPLETE
+SELECT order_id, status 
+FROM tb_101.raw_pos.oracle_orders_export
+WHERE order_id IN (1001, 1002, 1003);
+
+-- Clone — should show ARCHIVED
+SELECT order_id, status 
+FROM tb_101.raw_pos.oracle_orders_clone
+WHERE order_id IN (1001, 1002, 1003);
+
+-- Query the clone BEFORE the update happened
+SELECT order_id, status
+FROM tb_101.raw_pos.oracle_orders_clone
+BEFORE (STATEMENT => $last_update_id)
+WHERE order_id IN (1001, 1002, 1003);
+
+
+-- Query data as it was 3 minutes ago
+SELECT order_id, status
+FROM tb_101.raw_pos.oracle_orders_clone
+AT (OFFSET => -180)
+WHERE order_id IN (1001, 1002, 1003);
+
+
+-- This is the recovery pattern — Oracle has no equivalent
+-- Restore the clone back to its original state
+CREATE OR REPLACE TABLE tb_101.raw_pos.oracle_orders_restored
+CLONE tb_101.raw_pos.oracle_orders_clone
+BEFORE (STATEMENT => $last_update_id);
+
+-- Verify restored data
+SELECT order_id, status
+FROM tb_101.raw_pos.oracle_orders_restored
+WHERE order_id IN (1001, 1002, 1003);
